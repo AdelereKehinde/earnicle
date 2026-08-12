@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "earnicle_app",
+    "slug": "earnicle_app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/logo.png",
+    "scheme": "earnicleapp",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/images/logo.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#6246F5",
+        "foregroundImage": "./assets/images/logo.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/images/logo.png",
+          "imageWidth": 170
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "61a0edc7-e60b-4b4b-ae6f-ff7c4332a764"
+      }
+    }
+  }
+}
