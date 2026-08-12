@@ -15,7 +15,8 @@
         "backgroundColor": "#6246F5",
         "foregroundImage": "./assets/images/logo.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.earnicle_app"
     },
     "web": {
       "output": "static",
