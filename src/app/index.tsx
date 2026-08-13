@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    BackHandler,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -45,6 +46,7 @@ function Field({ label, value, onChangeText, placeholder, secureTextEntry = fals
 export default function Index() {
   const { ready, session, signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>('onboarding');
+  const [screenHistory, setScreenHistory] = useState<Screen[]>([]);
   const [slide, setSlide] = useState(0);
   const [role, setRole] = useState('reader');
   const [fullName, setFullName] = useState('');
@@ -57,13 +59,34 @@ export default function Index() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const codeRefs = useRef<Array<TextInput | null>>([]);
 
+  const handleSetScreen = (newScreen: Screen) => {
+    setScreenHistory([...screenHistory, screen]);
+    setScreen(newScreen);
+  };
+
+  const goBack = () => {
+    if (screenHistory.length > 0) {
+      const previousScreen = screenHistory[screenHistory.length - 1];
+      setScreenHistory(screenHistory.slice(0, -1));
+      setScreen(previousScreen);
+      setError('');
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     const listener = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setScreen('reset');
+      if (event === 'PASSWORD_RECOVERY') handleSetScreen('reset');
     });
     return () => listener.data.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', goBack);
+    return () => backHandler.remove();
+  }, [screenHistory, screen]);
 
   const run = async (work: () => Promise<{ error: { message: string } | null }>) => {
     setError(''); setLoading(true);
@@ -82,12 +105,12 @@ export default function Index() {
     if (!fullName.trim() || !email.trim() || password.length < 8) return setError('Enter your name, email, and a password of at least 8 characters.');
     if (!termsAccepted) return setError('Please accept the terms and privacy policy.');
     const ok = await run(() => supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim(), account_type: role } } }));
-    if (ok) setScreen('verify');
+    if (ok) handleSetScreen('verify');
   };
   const verify = async (token = code.join('')) => {
     if (token.length !== 6) return setError('Enter the 6-digit code from your email.');
     const ok = await run(() => supabase.auth.verifyOtp({ email: email.trim(), token, type: 'signup' }));
-    if (ok) setScreen('signin');
+    if (ok) handleSetScreen('signin');
   };
   const updateCode = (value: string, index: number) => {
     const digit = value.replace(/\D/g, '').slice(-1);
@@ -101,7 +124,7 @@ export default function Index() {
 
   if (screen === 'onboarding') {
     const item = onboarding[slide];
-    return <SafeAreaView style={styles.safe}><View style={styles.onboarding}><Brand /><View style={styles.progress}>{[0, 1, 2].map((dot) => <View key={dot} style={[styles.progressDot, dot === slide && styles.progressActive]} />)}</View><View style={styles.onboardCopy}><Text style={styles.onboardTitle}>{item.title}</Text><Text style={styles.onboardBody}>{item.body}</Text></View><Image source={item.image} style={[styles.onboardImage, slide > 0 && styles.photoImage]} contentFit="contain" /><PrimaryButton label={slide === 2 ? 'Get started  →' : 'Next  →'} onPress={() => slide === 2 ? setScreen('path') : setSlide(slide + 1)} /></View></SafeAreaView>;
+    return <SafeAreaView style={styles.safe}><View style={styles.onboarding}><Brand /><View style={styles.progress}>{[0, 1, 2].map((dot) => <View key={dot} style={[styles.progressDot, dot === slide && styles.progressActive]} />)}</View><View style={styles.onboardCopy}><Text style={styles.onboardTitle}>{item.title}</Text><Text style={styles.onboardBody}>{item.body}</Text></View><Image source={item.image} style={[styles.onboardImage, slide > 0 && styles.photoImage]} contentFit="contain" /><PrimaryButton label={slide === 2 ? 'Get started  →' : 'Next  →'} onPress={() => slide === 2 ? handleSetScreen('path') : setSlide(slide + 1)} /></View></SafeAreaView>;
   }
   if (screen === 'path') return <SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.pathPageContainer}><View style={styles.pathPage}><Brand /><View><Text style={styles.pathTitle}>Choose Your Path</Text><Text style={styles.pathSub}>Select how you want to use Earnicle</Text></View><View style={styles.roleList}>{[
     ['reader', 'book', 'Reader', 'Earn rewards by reading quality content', ['Earn coins per articles', 'Curated content feed', 'Track reading stats']],
@@ -111,15 +134,15 @@ export default function Index() {
     const isReader = value === 'reader';
     const isSelected = role === value;
     return <Pressable key={value as string} onPress={() => setRole(value as string)} style={[styles.roleCard, isReader && styles.roleCardReader, !isReader && styles.roleCardWriter, isSelected && styles.roleSelected]}><View style={[styles.roleIcon, styles.roleIconPurple]}><Ionicons name={icon as any} size={32} color="#fff" /></View><View style={styles.roleContent}><Text style={styles.roleTitle}>{title}</Text><Text style={styles.roleDesc}>{description}</Text>{(points as string[]).map((point) => <Text key={point} style={styles.rolePoint}>• {point}</Text>)}</View><View style={[styles.checkContainer, isSelected && styles.checkContainerActive]}>{isSelected && <Text style={styles.check}>✓</Text>}</View></Pressable>;
-  })}</View><PrimaryButton label="Continue" onPress={() => setScreen('signup')} /></View></ScrollView></SafeAreaView>;
+  })}</View><PrimaryButton label="Continue" onPress={() => handleSetScreen('signup')} /></View></ScrollView></SafeAreaView>;
 
   return <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><SafeAreaView style={styles.safe}><ScrollView contentContainerStyle={styles.authPage} keyboardShouldPersistTaps="handled"><Brand />
-    {screen === 'signup' && <><Text style={styles.authTitle}>Join Earnicle</Text><Text style={styles.authSub}>Start your earning journey today</Text><Field label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Enter your full name" /><Field label="Email" value={email} onChangeText={setEmail} placeholder="Your email" /><Field label="Password" value={password} onChangeText={setPassword} placeholder="Must be 8 characters" secureTextEntry /><Pressable onPress={() => setTermsAccepted(!termsAccepted)} style={styles.termsRow}><View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>{termsAccepted && <Ionicons name="checkmark" size={16} color="#fff" />}</View><Text style={styles.termsText}>I accept the terms and privacy policy</Text></Pressable>{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Create account" onPress={signup} loading={loading} /><Pressable onPress={() => setScreen('signin')}><Text style={styles.switchText}>Already have an account? <Text style={styles.link}>Sign In</Text></Text></Pressable></>}
-    {screen === 'signin' && <><Text style={styles.authTitle}>Welcome back</Text><Text style={styles.authSub}>Sign in to continue earning</Text><Field label="Email" value={email} onChangeText={setEmail} placeholder="Your email" /><Field label="Password" value={password} onChangeText={setPassword} placeholder="Your password" secureTextEntry /><Pressable onPress={() => setScreen('forgot')}><Text style={[styles.link, styles.forgot]}>Forgot password?</Text></Pressable>{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Sign In" loading={loading} onPress={async () => { const ok = await run(() => supabase.auth.signInWithPassword({ email: email.trim(), password })); if (!ok) return; }} /><Pressable onPress={() => setScreen('signup')}><Text style={styles.switchText}>New to Earnicle? <Text style={styles.link}>Create account</Text></Text></Pressable></>}
+    {screen === 'signup' && <><Text style={styles.authTitle}>Join Earnicle</Text><Text style={styles.authSub}>Start your earning journey today</Text><Field label="Full Name" value={fullName} onChangeText={setFullName} placeholder="Enter your full name" /><Field label="Email" value={email} onChangeText={setEmail} placeholder="Your email" /><Field label="Password" value={password} onChangeText={setPassword} placeholder="Must be 8 characters" secureTextEntry /><Pressable onPress={() => setTermsAccepted(!termsAccepted)} style={styles.termsRow}><View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>{termsAccepted && <Ionicons name="checkmark" size={16} color="#fff" />}</View><Text style={styles.termsText}>I accept the terms and privacy policy</Text></Pressable>{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Create account" onPress={signup} loading={loading} /><Pressable onPress={() => handleSetScreen('signin')}><Text style={styles.switchText}>Already have an account? <Text style={styles.link}>Sign In</Text></Text></Pressable></>}
+    {screen === 'signin' && <><Text style={styles.authTitle}>Welcome back</Text><Text style={styles.authSub}>Sign in to continue earning</Text><Field label="Email" value={email} onChangeText={setEmail} placeholder="Your email" /><Field label="Password" value={password} onChangeText={setPassword} placeholder="Your password" secureTextEntry /><Pressable onPress={() => handleSetScreen('forgot')}><Text style={[styles.link, styles.forgot]}>Forgot password?</Text></Pressable>{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Sign In" loading={loading} onPress={async () => { const ok = await run(() => supabase.auth.signInWithPassword({ email: email.trim(), password })); if (!ok) return; }} /><Pressable onPress={() => setScreen('signup')}><Text style={styles.switchText}>New to Earnicle? <Text style={styles.link}>Create account</Text></Text></Pressable></>}
     {screen === 'verify' && <><Text style={styles.authTitle}>Please check your{`\n`}email</Text><Text style={styles.authSub}>We’ve sent a code to <Text style={styles.strong}>{email}</Text></Text><View style={styles.codeRow}>{code.map((value, index) => <TextInput key={index} ref={(ref) => { codeRefs.current[index] = ref; }} value={value} onChangeText={(text) => updateCode(text, index)} onKeyPress={({ nativeEvent }) => nativeEvent.key === 'Backspace' && !value && index > 0 && codeRefs.current[index - 1]?.focus()} keyboardType="number-pad" maxLength={1} style={[styles.codeInput, !!error && styles.codeError]} />)}</View>{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Verify" onPress={() => verify()} loading={loading} /><Pressable onPress={() => run(() => supabase.auth.resend({ type: 'signup', email: email.trim() }))}><Text style={styles.resend}>Send code again</Text></Pressable></>}
-    {screen === 'forgot' && <><Text style={styles.authTitle}>Forgot password?</Text><Text style={styles.authSub}>Don't worry! It happens. Please enter the email{`\n`}associated with your account.</Text><Field label="Email address" value={email} onChangeText={setEmail} placeholder="Enter your email address" /><View style={styles.forgotSpacing} />{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Send code" loading={loading} onPress={async () => { const ok = await run(() => supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: Linking.createURL('reset-password') })); if (ok) Alert.alert('Check your email', 'We sent you a password reset link.'); }} /><Pressable onPress={() => setScreen('signin')}><Text style={styles.switchText}>Remember password? <Text style={styles.link}>Sign in</Text></Text></Pressable></>}
-    {screen === 'reset' && <><Text style={styles.authTitle}>Reset password</Text><Text style={styles.authSub}>Please type something you’ll remember</Text><Field label="New password" value={password} onChangeText={setPassword} placeholder="must be 8 characters" secureTextEntry /><Field label="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="repeat password" secureTextEntry />{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Reset password" loading={loading} onPress={async () => { if (password.length < 8 || password !== confirmPassword) return setError('Passwords must match and contain at least 8 characters.'); const ok = await run(() => supabase.auth.updateUser({ password })); if (ok) setScreen('changed'); }} /></>}
-    {screen === 'changed' && <><Text style={styles.sparkle}>✦</Text><Text style={styles.authTitle}>Password changed</Text><Text style={styles.authSub}>Your password has been changed{`\n`}successfully</Text><PrimaryButton label="Back to login" onPress={() => setScreen('signin')} /></>}
+    {screen === 'forgot' && <><Text style={styles.authTitle}>Forgot password?</Text><Text style={styles.authSub}>Don't worry! It happens. Please enter the email{`\n`}associated with your account.</Text><Field label="Email address" value={email} onChangeText={setEmail} placeholder="Enter your email address" /><View style={styles.forgotSpacing} />{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Send code" loading={loading} onPress={async () => { const ok = await run(() => supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: Linking.createURL('reset-password') })); if (ok) Alert.alert('Check your email', 'We sent you a password reset link.'); }} /><Pressable onPress={() => handleSetScreen('signin')}><Text style={styles.switchText}>Remember password? <Text style={styles.link}>Sign in</Text></Text></Pressable></>}
+{screen === 'reset' && <><Text style={styles.authTitle}>Reset password</Text><Text style={styles.authSub}>Please type something you'll remember</Text><Field label="New password" value={password} onChangeText={setPassword} placeholder="must be 8 characters" secureTextEntry /><Field label="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="repeat password" secureTextEntry />{error ? <Text style={styles.error}>{error}</Text> : null}<PrimaryButton label="Reset password" loading={loading} onPress={async () => { if (password.length < 8 || password !== confirmPassword) return setError('Passwords must match and contain at least 8 characters.'); const ok = await run(() => supabase.auth.updateUser({ password })); if (ok) handleSetScreen('changed');
+    {screen === 'changed' && <><Text style={styles.sparkle}>✦</Text><Text style={styles.authTitle}>Password changed</Text><Text style={styles.authSub}>Your password has been changed{`\n`}successfully</Text><PrimaryButton label="Back to login" onPress={() => handleSetScreen('signin')} /></>}
   </ScrollView></SafeAreaView></KeyboardAvoidingView>;
 }
 
