@@ -5,7 +5,6 @@
   "dependencies": {
     "@expo/ui": "~57.0.7",
     "@expo/vector-icons": "^15.1.1",
-    "@supabase/supabase-js": "^2.110.9",
     "expo": "~57.0.8",
     "expo-constants": "~57.0.6",
     "expo-dev-client": "~57.0.11",
@@ -21,6 +20,9 @@
     "expo-symbols": "~57.0.1",
     "expo-system-ui": "~57.0.1",
     "expo-web-browser": "~57.0.1",
+    "lottie-ios": "^4.6.1",
+    "lottie-react": "^2.3.0",
+    "lottie-react-native": "^6.7.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
@@ -34,6 +36,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {

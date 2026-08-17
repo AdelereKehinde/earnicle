@@ -1,180 +1,111 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useAuth } from '@/providers/auth-provider';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
+const purple = '#5B4FE5';
+
+export default function Dashboard() {
+  const { session, signOut } = useAuth();
+  const router = useRouter();
+  const user = session?.user;
+
+  const handleLogout = async () => {
+    await signOut();
+    try {
+      // persist last action so index can show signin
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const api = require('../../lib/api');
+      if (api && api.setLastAuthAction) await api.setLastAuthAction('signed_out');
+    } catch {}
+    router.replace('/?screen=signin');
   };
-  const theme = useTheme();
-
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Welcome back</Text>
+            <Text style={styles.name}>{user?.full_name || 'Earnicle User'}</Text>
+          </View>
+          <Pressable onPress={handleLogout} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={18} color={purple} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </Pressable>
+        </View>
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+        <View style={styles.hero}>
+          <Text style={styles.heroLabel}>Total Earnings</Text>
+          <Text style={styles.heroAmount}>₦{Number(user?.total_earnings ?? 0).toFixed(2)}</Text>
+          <Text style={styles.heroHint}>Keep reading and writing to earn more</Text>
+        </View>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{user?.total_stories ?? 0}</Text>
+            <Text style={styles.statLabel}>Articles</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{user?.followers ?? 0}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{user?.following ?? 0}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </View>
+        </View>
 
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Membership</Text>
+          {user?.is_pro_member ? (
+            <View style={styles.proBadge}><Text style={styles.proBadgeText}>PRO MEMBER</Text></View>
+          ) : (
+            <Text style={styles.cardBody}>You are on the free plan.</Text>
+          )}
+        </View>
 
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Recent activity</Text>
+          <Text style={styles.cardBody}>Nothing to show yet. Your reading and writing activity will appear here.</Text>
+        </View>
 
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [styles.logoutBig, pressed && styles.pressed]}>
+          <Text style={styles.logoutBigText}>Log out</Text>
+        </Pressable>
+        <Text style={styles.footer}>Signed in as {user?.username || 'you'}</Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-  },
+  safe: { flex: 1, backgroundColor: '#F6F6F9' },
+  page: { padding: 20, paddingBottom: 40, gap: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  greeting: { fontSize: 14, color: '#888' },
+  name: { fontSize: 22, fontWeight: '700', color: '#050505', marginTop: 2 },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#DDD', backgroundColor: '#fff' },
+  logoutText: { color: purple, fontWeight: '600', fontSize: 14 },
+  hero: { backgroundColor: purple, borderRadius: 18, padding: 22 },
+  heroLabel: { color: '#DCD8FF', fontSize: 13 },
+  heroAmount: { color: '#fff', fontSize: 34, fontWeight: '800', marginTop: 6 },
+  heroHint: { color: '#DCD8FF', fontSize: 13, marginTop: 8 },
+  statsRow: { flexDirection: 'row', gap: 12 },
+  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#EFEFEF', paddingVertical: 18, alignItems: 'center' },
+  statValue: { fontSize: 22, fontWeight: '700', color: '#050505' },
+  statLabel: { fontSize: 12, color: '#888', marginTop: 4 },
+  card: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#EFEFEF', padding: 18 },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#050505', marginBottom: 8 },
+  cardBody: { fontSize: 14, color: '#666', lineHeight: 20 },
+  proBadge: { alignSelf: 'flex-start', backgroundColor: '#EFEBFF', borderRadius: 99, paddingHorizontal: 14, paddingVertical: 6 },
+  proBadgeText: { color: purple, fontWeight: '700', fontSize: 12, letterSpacing: 0.5 },
+  logoutBig: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E0F5', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 4 },
+  logoutBigText: { color: purple, fontWeight: '700', fontSize: 16 },
+  pressed: { opacity: 0.8 },
+  footer: { textAlign: 'center', color: '#A0A0A0', fontSize: 12 },
 });

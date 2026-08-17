@@ -1,12 +1,38 @@
-import * as Linking from 'expo-linking';
-import { Session } from '@supabase/supabase-js';
-import { PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from 'react';
+// src/providers/auth-provider.tsx
+// Single source of truth for the auth session.
+// On launch it restores the persisted session before rendering, so the app
+// never flashes the Login screen for an already-authenticated user.
+import {
+  PropsWithChildren,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import {
+  authApi,
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+  Profile,
+  TokenResponse,
+} from '../../lib/api';
+
+type Session = {
+  access_token: string;
+  refresh_token: string;
+  user: Profile;
+};
 
 type AuthContextValue = {
   session: Session | null;
   ready: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (fullName: string, email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -16,52 +42,67 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Restore the persisted session once, before any screen renders.
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setReady(true);
-      return;
-    }
-
     let active = true;
+    (async () => {
+      try {
+        const accessToken = await getAccessToken();
+        const refreshToken = await getRefreshToken();
+        if (!accessToken || !refreshToken) return;
 
-    supabase.auth.getSession().then(({ data: { session: savedSession } }) => {
-      if (active) {
-        setSession(savedSession);
-        setReady(true);
+        // getMe auto-refreshes the access token on 401 (see lib/api.ts).
+        const user = await authApi.getMe();
+        if (!active) return;
+        const newAccess = await getAccessToken();
+        const newRefresh = await getRefreshToken();
+        setSession({
+          access_token: newAccess ?? accessToken,
+          refresh_token: newRefresh ?? refreshToken,
+          user,
+        });
+      } catch {
+        // Invalid/expired session — api layer already cleared the tokens.
+        setSession(null);
+      } finally {
+        if (active) setReady(true);
       }
-    });
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (active) {
-        setSession(nextSession);
-        setReady(true);
-      }
-    });
-
-    const handleUrl = async ({ url }: { url: string }) => {
-      if (url.includes('code=')) await supabase.auth.exchangeCodeForSession(url);
-    };
-    Linking.getInitialURL().then((url) => {
-      if (url) void handleUrl({ url });
-    });
-    const linkingSubscription = Linking.addEventListener('url', handleUrl);
-
+    })();
     return () => {
       active = false;
-      subscription.subscription.unsubscribe();
-      linkingSubscription.remove();
     };
   }, []);
 
+  const persistSession = useCallback(async (tokens: TokenResponse) => {
+    await setTokens(tokens.access_token, tokens.refresh_token);
+    const user = await authApi.getMe();
+    setSession({ access_token: tokens.access_token, refresh_token: tokens.refresh_token, user });
+  }, []);
+
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const tokens = await authApi.login(email, password);
+      await persistSession(tokens);
+    },
+    [persistSession],
+  );
+
+  const signUp = useCallback(
+    async (fullName: string, email: string, password: string) => {
+      const tokens = await authApi.signup(fullName, email, password);
+      await persistSession(tokens);
+    },
+    [persistSession],
+  );
+
+  const signOut = useCallback(async () => {
+    await clearTokens();
+    setSession(null);
+  }, []);
+
   const value = useMemo(
-    () => ({
-      session,
-      ready,
-      signOut: async () => {
-        await supabase.auth.signOut();
-      },
-    }),
-    [ready, session],
+    () => ({ session, ready, signIn, signUp, signOut }),
+    [session, ready, signIn, signUp, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
